@@ -1,4 +1,5 @@
 import os
+import typing
 import uuid
 import xml.etree.ElementTree as etree
 import datetime
@@ -20,13 +21,14 @@ class Package:
     def __init__(
             self, name: str, difficulty: int, uid: str = None, date: str = None,
             language: str = None, restriction: str = None, publisher: str = None,
-            rounds: list = None):
+            logo: str = None, rounds: list = None):
         self.id = uid or str(uuid.uuid4())
         self.name = name
         self.language = language
         self.difficulty = int(difficulty)
         self.date = date or datetime.date.today().strftime('%d.%m.%Y')
         self.authors = []
+        self.logo = logo
         self.sources = []
         self.comments = None
         self.rounds = rounds or []
@@ -40,6 +42,9 @@ class Package:
             raise ValueError(f'Root node is "{m.group(2)}", expected "package".')
         ns = {'x': m.group(1)}
         # Parse root node attributes
+        logo = root_node.get('logo')
+        if logo:
+            logo = logo[1:]
         p = cls(
             root_node.get('name'),
             uid=root_node.get('id'),
@@ -48,6 +53,7 @@ class Package:
             language=root_node.get('language'),
             publisher=root_node.get('publisher'),
             restriction=root_node.get('restriction'),
+            logo=logo
         )
         # Parse info
         info = root_node.find('x:info', ns)
@@ -77,6 +83,7 @@ class Package:
             language=root.get('language'),
             restriction=root.get('restriction'),
             publisher=root.get('publisher'),
+            logo=root.get('logo'),
         )
         a = root.get('authors')
         if not a:
@@ -104,6 +111,7 @@ class Package:
         package = etree.Element('package', {
             'xmlms': 'http://vladimirkhil.com/ygpackage3.0.xsd',
             'name': self.name,
+            'logo': f'@{self.logo}',
             'version': '4',
             'difficulty': str(self.difficulty),
             'id': self.id,
@@ -139,6 +147,7 @@ class Package:
             'id': self.id,
             'difficulty': self.difficulty,
             'date': self.date,
+            'logo': self.logo,
         }
         if self.language:
             res['language'] = self.language
@@ -252,7 +261,7 @@ DIRNAMES = {
 
 
 class QAtom:
-    def __init__(self, typ: str, time: int, value: str, path: str = None):
+    def __init__(self, typ: str, time: typing.Optional[int], value: str, path: str = None):
         self.type = typ
         self.time = time
         self.value = value
@@ -326,9 +335,9 @@ class Question:
             atype = atom.get('type')
             if not atype or atype == 'text':
                 a = QAtom('text', time, atom.text)
-            elif atype == 'say':
-                a = QAtom('say', time, atom.text)
-            elif atype in ('image', 'voice', 'video'):
+            elif atype in {'say', 'marker'}:
+                a = QAtom(atype, time, atom.text)
+            elif atype in {'image', 'voice', 'video'}:
                 a = QAtom(atype, time, atom.text[1:])
                 path = cls.resolve_path(a.type, a.value, context)
                 if not path:
@@ -381,16 +390,11 @@ class Question:
             scenario = [node]
         for atom in scenario:
             time = int(atom['time']) if 'time' in atom else None
-            if 'text' in atom:
-                a = QAtom('text', time, atom['text'])
-            elif 'say' in atom:
-                a = QAtom('say', time, atom['say'])
-            elif 'image' in atom:
-                a = QAtom('image', time, atom['image'])
-            elif 'voice' in atom:
-                a = QAtom('voice', time, atom['voice'])
-            elif 'video' in atom:
-                a = QAtom('video', time, atom['video'])
+            # Attempt to create a QAtom object with the first matching key in the atom dictionary.
+            for key in atom:
+                if key in ['text', 'say', 'image', 'voice', 'video', 'marker']:
+                    a = QAtom(key, time, atom[key])
+                    break
             else:
                 raise ValidationException(f'Unknown atom type in question for {value} in theme "{theme.name}"')
             if a.type in ('image', 'voice', 'video'):

@@ -43,10 +43,16 @@ def main():
             # Extract all media files into /media
             media_path = os.path.join(context.base_path, 'media')
             for name in siq.namelist():
-                if name.split('/')[0] in DIRNAMES.values():
+                parts = name.split('/')
+                if parts[0] in DIRNAMES.values():
                     if not os.path.exists(media_path):
                         os.mkdir(media_path)
-                    target = os.path.join(media_path, name.split('/')[-1])
+                    if len(parts) != 2:
+                        print(f'Skip "{name}", subdirs not supported')
+                    # Empty dir
+                    if not parts[-1]:
+                        continue
+                    target = os.path.join(media_path, parts[-1])
                     with siq.open(name) as source:
                         with open(target, 'wb') as target:
                             shutil.copyfileobj(source, target)

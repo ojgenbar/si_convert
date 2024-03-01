@@ -6,10 +6,16 @@
 
     si_convert pack.yml result.siq
 
+В настоящий момент **НЕ поддерживает формат SIQ v5**. Помощь приветствуется.
+
 ## Формат файла YAML
 
 Для примера, скачайте любой пак из [библиотеки вопросов](https://vladimirkhil.com/si/storage)
 и запустите с ним этот конвертер.
+
+См. также:
+* [Описание формата SIQ v4 в репозитории игры](https://github.com/VladimirKhil/SI/wiki/SIQ-file-format-(version-4))
+* [Типы вопросов](https://vladimirkhil.com/si/qtypes)
 
 ### Пакет
 
@@ -18,6 +24,7 @@
 name | строка | название пакета, обязательно
 difficulty | число | сложность 1-10, обязательно
 date | строка | дата обновления в формате дд.мм.гггг
+logo | строка | картинка для отображения
 language | строка | язык в формате ISO 639-1 + страна (например, `ru-RU` или `en-US`)
 authors | массив строк | список авторов, обязательно
 sources | массив строк | список источников
@@ -113,7 +120,7 @@ round2:
 Есть инструменты с нормальным интерфейсом:
 
 * [SIQuester](https://vladimirkhil.com/si/siquester) — официальный редактор. Требует Windows.
-* [SIPacker](https://github.com/VityaSchel/SIPacker) — веб-редактор, ссылка есть в readme.
+* [SIPacker](https://github.com/VityaSchel/SIPacker) — веб-редактор, ссылка есть в readme (заброшен).
 
 ## Как играть?
 
