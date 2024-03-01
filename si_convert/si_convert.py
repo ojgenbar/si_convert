@@ -92,6 +92,8 @@ def main():
                         for a in q.scenario:
                             if a.path:
                                 siq.write(a.path, f'{a.dirname}/{a.value}')
+            if package.logo_path:
+                siq.write(package.logo_path, f'Images/{package.logo_name}')
     else:
         with open(output, 'w') as f:
             yaml.dump(package.to_yaml(), f, allow_unicode=True)

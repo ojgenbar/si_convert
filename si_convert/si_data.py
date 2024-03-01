@@ -21,19 +21,23 @@ class Package:
     def __init__(
             self, name: str, difficulty: int, uid: str = None, date: str = None,
             language: str = None, restriction: str = None, publisher: str = None,
-            logo: str = None, rounds: list = None):
+            logo_path: str = None, rounds: list = None):
         self.id = uid or str(uuid.uuid4())
         self.name = name
         self.language = language
         self.difficulty = int(difficulty)
         self.date = date or datetime.date.today().strftime('%d.%m.%Y')
         self.authors = []
-        self.logo = logo
+        self.logo_path = logo_path
         self.sources = []
         self.comments = None
         self.rounds = rounds or []
         self.restriction = restriction
         self.publisher = publisher
+
+    @property
+    def logo_name(self):
+        return os.path.basename(self.logo_path)
 
     @classmethod
     def from_xml(cls, root_node, context: Context = None):
@@ -43,8 +47,9 @@ class Package:
         ns = {'x': m.group(1)}
         # Parse root node attributes
         logo = root_node.get('logo')
+        logo_path = None
         if logo:
-            logo = logo[1:]
+            logo_path = resolve_path('image', logo[1:], context)
         p = cls(
             root_node.get('name'),
             uid=root_node.get('id'),
@@ -53,7 +58,7 @@ class Package:
             language=root_node.get('language'),
             publisher=root_node.get('publisher'),
             restriction=root_node.get('restriction'),
-            logo=logo
+            logo_path=logo_path
         )
         # Parse info
         info = root_node.find('x:info', ns)
@@ -75,6 +80,10 @@ class Package:
 
     @classmethod
     def from_yaml(cls, root, context: Context = None):
+        logo = root.get('logo')
+        logo_path = None
+        if logo:
+            logo_path = resolve_path('image', logo, context)
         p = cls(
             root['name'],
             uid=root.get('id'),
@@ -83,7 +92,7 @@ class Package:
             language=root.get('language'),
             restriction=root.get('restriction'),
             publisher=root.get('publisher'),
-            logo=root.get('logo'),
+            logo_path=logo_path,
         )
         a = root.get('authors')
         if not a:
@@ -111,7 +120,6 @@ class Package:
         package = etree.Element('package', {
             'xmlms': 'http://vladimirkhil.com/ygpackage3.0.xsd',
             'name': self.name,
-            'logo': f'@{self.logo}',
             'version': '4',
             'difficulty': str(self.difficulty),
             'id': self.id,
@@ -124,6 +132,9 @@ class Package:
             package.set('published', self.publisher)
         if self.restriction:
             package.set('restriction', self.restriction)
+        if self.logo_path:
+            logo = f'@{self.logo_name}'
+            package.set('logo', logo)
         info = etree.SubElement(package, 'info')
         if self.authors:
             authors = etree.SubElement(info, 'authors')
@@ -147,7 +158,6 @@ class Package:
             'id': self.id,
             'difficulty': self.difficulty,
             'date': self.date,
-            'logo': self.logo,
         }
         if self.language:
             res['language'] = self.language
@@ -161,6 +171,8 @@ class Package:
             res['sources'] = self.sources
         if self.comments:
             res['comments'] = self.comments
+        if self.logo_path:
+            res['logo'] = self.logo_name
         for i, r in enumerate(self.rounds):
             res[f'round{i+1}'] = r.to_yaml(context=context)
         return res
@@ -285,28 +297,6 @@ class Question:
         self.to_self = False
         self.knows = None
 
-    @staticmethod
-    def resolve_path(typ, name: str, context: Context = None) -> str:
-        base = '.' if not context else context.base_path
-        if os.path.exists(os.path.join(base, name)):
-            return name
-        p = os.path.join(base, 'media', name)
-        if os.path.exists(p):
-            return p
-        dirname = DIRNAMES.get(typ)
-        if not dirname:
-            return None
-        p = os.path.join(base, dirname, name)
-        if os.path.exists(p):
-            return p
-        p = os.path.join(base, 'media', dirname, name)
-        if os.path.exists(p):
-            return p
-        p = os.path.join(base, dirname.lower(), name)
-        if os.path.exists(p):
-            return p
-        return None
-
     @classmethod
     def from_xml(cls, node, theme: Theme, ns: dict, context: Context = None):
         q = cls(value=int(node.get('price')))
@@ -339,7 +329,7 @@ class Question:
                 a = QAtom(atype, time, atom.text)
             elif atype in {'image', 'voice', 'video'}:
                 a = QAtom(atype, time, atom.text[1:])
-                path = cls.resolve_path(a.type, a.value, context)
+                path = resolve_path(a.type, a.value, context)
                 if not path:
                     raise ValidationException(f'Missing file {a.value} in question for {q.value}, theme "{theme.name}"')
                 a.path = path
@@ -398,7 +388,7 @@ class Question:
             else:
                 raise ValidationException(f'Unknown atom type in question for {value} in theme "{theme.name}"')
             if a.type in ('image', 'voice', 'video'):
-                path = cls.resolve_path(a.type, a.value, context)
+                path = resolve_path(a.type, a.value, context)
                 if not path:
                     raise ValidationException(f'Missing file {a.value} in question for {value}, theme "{theme.name}"')
                 a.path = path
@@ -489,3 +479,25 @@ class Question:
             k = 'wrong' if i == 0 else f'wrong{i+1}'
             q[k] = a
         return q
+
+
+def resolve_path(typ, name: str, context: Context = None) -> str:
+    base = '.' if not context else context.base_path
+    if os.path.exists(os.path.join(base, name)):
+        return name
+    p = os.path.join(base, 'media', name)
+    if os.path.exists(p):
+        return p
+    dirname = DIRNAMES.get(typ)
+    if not dirname:
+        return None
+    p = os.path.join(base, dirname, name)
+    if os.path.exists(p):
+        return p
+    p = os.path.join(base, 'media', dirname, name)
+    if os.path.exists(p):
+        return p
+    p = os.path.join(base, dirname.lower(), name)
+    if os.path.exists(p):
+        return p
+    return None
